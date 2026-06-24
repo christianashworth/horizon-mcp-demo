@@ -1,0 +1,118 @@
+﻿version: 2
+
+models:
+  - name: stg_policies
+    description: >
+      Staged policy records from raw seed data. One row per policy.
+      Includes all active and cancelled policies.
+    columns:
+      - name: policy_id
+        description: Unique identifier for the policy
+        tests:
+          - unique
+          - not_null
+      - name: product_type
+        description: "Type of insurance product: auto or homeowners"
+      - name: state
+        description: US state where the policy is written
+      - name: written_premium
+        description: Total premium charged for the policy term
+      - name: status
+        description: "Current policy status: active or cancelled"
+
+  - name: stg_claims
+    description: >
+      Staged claims records. One row per claim.
+      Includes open and closed claims across all policy types.
+    columns:
+      - name: claim_id
+        description: Unique identifier for the claim
+        tests:
+          - unique
+          - not_null
+      - name: policy_id
+        description: Foreign key to stg_policies
+        tests:
+          - not_null
+      - name: incurred_loss
+        description: >
+          Total estimated loss for this claim including paid amounts and
+          case reserves. This is the standard actuarial incurred loss figure
+          used in loss ratio calculations.
+      - name: paid_loss
+        description: Amounts already paid out on this claim
+      - name: case_reserve
+        description: >
+          Incurred loss minus paid loss. Represents the estimated future
+          payment obligation on open claims.
+      - name: status
+        description: "Claim status: open or closed"
+
+  - name: stg_premiums
+    description: >
+      Earned premium by policy by calendar month. One row per policy per month.
+      Earned premium represents the portion of written premium allocated to a
+      given month based on the policy period. Used as the denominator in
+      all loss ratio calculations.
+    columns:
+      - name: premium_id
+        description: Unique identifier for this earning record
+        tests:
+          - unique
+          - not_null
+      - name: policy_id
+        description: Foreign key to stg_policies
+      - name: earning_month
+        description: "Calendar month in YYYY-MM format"
+      - name: earned_premium
+        description: Premium earned in this calendar month for this policy
+
+  - name: mart_policy_summary
+    description: >
+      Policy-level summary combining written premium, earned premium,
+      and claim activity. One row per policy. Primary source for
+      policy-level loss ratio analysis.
+
+      METRIC DEFINITIONS (enforced at this layer):
+      - loss_ratio: total incurred loss / total earned premium (policy period to date)
+      - incurred_loss: paid losses + case reserves on all claims for this policy
+      - earned_premium: sum of monthly earned premium records for this policy
+    columns:
+      - name: policy_id
+        tests:
+          - unique
+          - not_null
+      - name: loss_ratio
+        description: >
+          Incurred loss ratio at the policy level. Numerator is total incurred
+          losses (paid + case reserve). Denominator is total earned premium
+          for the policy period to date. Null if no earned premium recorded.
+
+  - name: mart_loss_ratio_by_segment
+    description: >
+      Loss ratio and claim metrics aggregated by product type and state.
+      Primary analytical surface for segment-level underwriting performance.
+
+      METRIC DEFINITIONS (enforced at this layer):
+      - loss_ratio: sum(incurred_loss) / sum(earned_premium) by segment
+      - claim_frequency_per_100: claims per 100 in-force policies
+      - avg_incurred_loss_per_claim: total incurred loss / total claim count
+    columns:
+      - name: loss_ratio
+        description: >
+          Segment-level incurred loss ratio. Consistent with policy-level
+          definition in mart_policy_summary. Numerator and denominator are
+          summed independently before dividing â€” not an average of policy
+          loss ratios.
+
+  - name: mart_monthly_premium_trend
+    description: >
+      Monthly earned premium and claim activity by product type and state.
+      Used for trend analysis and monitoring loss ratio development over time.
+    columns:
+      - name: monthly_loss_ratio
+        description: >
+          Loss ratio for the calendar month only. Claims matched to the month
+          they were reported, not the month they occurred. Earned premium is
+          the premium earned in that specific month.
+

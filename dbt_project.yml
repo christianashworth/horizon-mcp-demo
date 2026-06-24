@@ -1,0 +1,27 @@
+﻿name: 'horizon_insurance'
+version: '1.0.0'
+config-version: 2
+
+profile: 'horizon_insurance'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+seed-paths: ["seeds"]
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+seeds:
+  horizon_insurance:
+    +schema: raw
+
+models:
+  horizon_insurance:
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+

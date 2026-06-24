@@ -1,0 +1,20 @@
+﻿# dbt
+target/
+dbt_packages/
+logs/
+
+# DuckDB database file (generated locally by dbt run)
+*.duckdb
+*.duckdb.wal
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
