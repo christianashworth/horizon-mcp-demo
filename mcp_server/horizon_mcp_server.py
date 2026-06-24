@@ -1,4 +1,4 @@
-﻿"""
+"""
 horizon_mcp_server.py
 
 A lightweight MCP server that exposes the Horizon Insurance dbt project
@@ -21,12 +21,12 @@ import duckdb
 from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
-# â”€â”€ paths â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── paths ──────────────────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).parent.parent
 MANIFEST_PATH = PROJECT_ROOT / "target" / "manifest.json"
 DB_PATH = PROJECT_ROOT / "horizon_insurance.duckdb"
 
-# â”€â”€ MCP server â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── MCP server ─────────────────────────────────────────────────────────────────
 mcp = FastMCP("Horizon Insurance Data")
 
 
@@ -51,7 +51,7 @@ def get_db_connection():
     return duckdb.connect(str(DB_PATH), read_only=True)
 
 
-# â”€â”€ tools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── tools ──────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
 def list_models() -> str:
@@ -122,8 +122,8 @@ def get_metric_definitions() -> str:
     definitions = {
         "loss_ratio": {
             "definition": "Incurred losses divided by earned premium",
-            "numerator": "Total incurred loss â€” the sum of paid losses and case reserves on all claims",
-            "denominator": "Total earned premium â€” the premium allocated to the measurement period",
+            "numerator": "Total incurred loss — the sum of paid losses and case reserves on all claims",
+            "denominator": "Total earned premium — the premium allocated to the measurement period",
             "governance_note": (
                 "Loss ratio must always be calculated as sum(incurred_loss) / sum(earned_premium). "
                 "Do not average policy-level loss ratios. "
@@ -149,7 +149,7 @@ def get_metric_definitions() -> str:
                 "based on how much of the policy term has elapsed"
             ),
             "governance_note": (
-                "Use earned premium â€” not written premium â€” as the denominator "
+                "Use earned premium — not written premium — as the denominator "
                 "in all loss ratio calculations. Written premium is the total "
                 "premium charged at policy inception. Earned premium is the "
                 "portion that has been 'earned' through time."
@@ -192,7 +192,7 @@ def query_data(sql: str) -> str:
         sql: A read-only SELECT statement. UPDATE, INSERT, DELETE, and DROP
              are not permitted.
     """
-    # safety check â€” block any write operations
+    # safety check — block any write operations
     sql_upper = sql.strip().upper()
     forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "TRUNCATE"]
     for keyword in forbidden:
@@ -204,25 +204,27 @@ def query_data(sql: str) -> str:
 
     try:
         conn = get_db_connection()
-        result = conn.execute(sql).fetchdf()
+        cursor = conn.execute(sql)
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
         conn.close()
 
-        if result.empty:
-            return json.dumps({"rows": [], "row_count": 0})
+        if not rows:
+            return json.dumps({"rows": [], "row_count": 0, "columns": columns})
 
-        # convert to JSON-serialisable format
-        records = result.to_dict(orient="records")
+        # convert to JSON-serialisable list of dicts without pandas/numpy
+        records = [dict(zip(columns, row)) for row in rows]
         return json.dumps({
             "rows": records,
             "row_count": len(records),
-            "columns": list(result.columns),
+            "columns": columns,
         }, indent=2, default=str)
 
     except Exception as e:
         return json.dumps({"error": str(e)})
 
 
-# â”€â”€ entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── entry point ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print("Starting Horizon Insurance MCP server...")
@@ -230,4 +232,3 @@ if __name__ == "__main__":
     print(f"  Manifest     : {MANIFEST_PATH}")
     print(f"  Database     : {DB_PATH}")
     mcp.run(transport="stdio")
-
